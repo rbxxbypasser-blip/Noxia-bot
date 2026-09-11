@@ -5,8 +5,8 @@ from discord.ext import commands
 import json
 import os
 
-CONFIG_FILE = "/data/data/com.termux/files/home/noxia-bot/config.json"
-TOKEN_FILE = "/data/data/com.termux/files/home/noxia-bot/.env"
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -469,8 +469,14 @@ bot.tree.add_command(EmbedGroup())
 # 🔐 TOKEN
 # ═══════════════════════════════════════
 
-with open(TOKEN_FILE, "r") as f:
-    TOKEN = f.read().strip()
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN and os.path.exists(TOKEN_FILE):
+    with open(TOKEN_FILE, "r") as f:
+        TOKEN = f.read().strip()
+
+if not TOKEN:
+    raise RuntimeError("DISCORD_TOKEN environment variable is not set.")
 
 # ───────────── /ping SYSTEM ─────────────
 
