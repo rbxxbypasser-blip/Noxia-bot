@@ -1,4 +1,5 @@
 import discord
+from aiohttp import web
 import asyncio
 from discord import app_commands
 from discord.ext import commands
@@ -469,6 +470,16 @@ bot.tree.add_command(EmbedGroup())
 # 🔐 TOKEN
 # ═══════════════════════════════════════
 
+async def health(request):
+    return web.Response(text="Noxia is online!")
+
+async def start_web():
+    app = web.Application()
+    app.router.add_get("/", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", 10000).start()
+
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 if not TOKEN and os.path.exists(TOKEN_FILE):
@@ -597,4 +608,9 @@ async def video(
     )
 
 
-bot.run(TOKEN)
+async def main():
+    await start_web()
+    await bot.start(TOKEN)
+
+import asyncio
+asyncio.run(main())
