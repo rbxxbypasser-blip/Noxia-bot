@@ -473,144 +473,21 @@ bot.tree.add_command(EmbedGroup())
 async def health(request):
     return web.Response(text="Noxia is online!")
 
+WEB_PORT = int(os.getenv("PORT", "10000"))
+web_runner = None
+
 async def start_web():
+    global web_runner
     app = web.Application()
     app.router.add_get("/", health)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    await web.TCPSite(runner, "0.0.0.0", 10000).start()
-
-TOKEN = os.getenv("DISCORD_TOKEN")
-
-if not TOKEN and os.path.exists(TOKEN_FILE):
-    with open(TOKEN_FILE, "r") as f:
-        TOKEN = f.read().strip()
-
-if not TOKEN:
-    raise RuntimeError("DISCORD_TOKEN environment variable is not set.")
-
-# ───────────── /ping SYSTEM ─────────────
-
-# ───────────── /ping SYSTEM ─────────────
-noxia_ping_tasks = {}
-
-@bot.tree.command(name="ping", description="Send a temporary @everyone ping")
-async def ping(interaction: discord.Interaction, interval: int = 60):
-    if not interaction.user.guild_permissions.mention_everyone:
-        await interaction.response.send_message(
-            "❌ You need the **Mention Everyone** permission to use this.",
-            ephemeral=True
-        )
-        return
-
-    if interval < 30:
-        await interaction.response.send_message(
-            "❌ The minimum interval is **30 seconds**.",
-            ephemeral=True
-        )
-        return
-
-    guild_id = interaction.guild.id
-
-    if guild_id in noxia_ping_tasks:
-        noxia_ping_tasks[guild_id].cancel()
-
-    await interaction.response.send_message(
-        f"✅ @everyone ping started every **{interval}s**. Use `/pingstop` to stop it.",
-        ephemeral=True
-    )
-
-    async def ping_loop():
-        await asyncio.sleep(1)
-        while True:
-            msg = await interaction.channel.send(
-                "@everyone",
-                allowed_mentions=discord.AllowedMentions(everyone=True)
-            )
-            await asyncio.sleep(3)
-            try:
-                await msg.delete()
-            except discord.NotFound:
-                pass
-            await asyncio.sleep(interval)
-
-    noxia_ping_tasks[guild_id] = asyncio.create_task(ping_loop())
-
-
-@bot.tree.command(name="pingstop", description="Stop the temporary @everyone ping")
-async def pingstop(interaction: discord.Interaction):
-    task = noxia_ping_tasks.pop(interaction.guild.id, None)
-
-    if task:
-        task.cancel()
-        await interaction.response.send_message(
-            "🛑 **@everyone ping stopped.**",
-            ephemeral=True
-        )
-    else:
-        await interaction.response.send_message(
-            "ℹ️ There isn't an active ping loop.",
-            ephemeral=True
-        )
-
-
-
-# ───────────── /video SYSTEM ─────────────
-@bot.tree.command(name="video", description="Post a video with a fancy Noxia embed")
-async def video(
-    interaction: discord.Interaction,
-    video: discord.Attachment,
-    title: str = "𝐍𝐞𝐰 𝐕𝐢𝐝𝐞𝐨 ✨",
-    description: str = "𝐂𝐡𝐞𝐜𝐤 𝐨𝐮𝐭 𝐭𝐡𝐢𝐬 𝐯𝐢𝐝𝐞𝐨! 🎬"
-):
-    if not video.content_type or not video.content_type.startswith("video/"):
-        await interaction.response.send_message(
-            "❌ Please upload a **video file**.",
-            ephemeral=True
-        )
-        return
-
-    await interaction.response.defer()
-
-    embed = discord.Embed(
-        title=f"╭・🎬 {title}",
-        description=(
-            f"╰・✨ {description}\n\n"
-            f"👤 **𝐏𝐨𝐬𝐭𝐞𝐝 𝐛𝐲:** {interaction.user.mention}\n"
-            f"📁 **𝐅𝐢𝐥𝐞:** {video.filename}"
-        ),
-        timestamp=discord.utils.utcnow()
-    )
-
-    embed.set_author(
-        name=f"𝐍𝐨𝐱𝐢𝐚 ♡ • {interaction.guild.name}"
-    )
-
-    embed.add_field(
-        name="🎥 𝐕𝐢𝐝𝐞𝐨",
-        value="✨ 𝐄𝐧𝐣𝐨𝐲 𝐭𝐡𝐞 𝐯𝐢𝐝𝐞𝐨!",
-        inline=True
-    )
-
-    embed.add_field(
-        name="👤 𝐂𝐫𝐞𝐚𝐭𝐨𝐫",
-        value=interaction.user.mention,
-        inline=True
-    )
-
-    embed.set_footer(
-        text="⚡ 𝐏𝐨𝐰𝐞𝐫𝐞𝐝 𝐛𝐲 𝐍𝐨𝐱𝐢𝐚 ♡ • 𝐌𝐚𝐝𝐞 𝐰𝐢𝐭𝐡 ✨"
-    )
-
-    await interaction.followup.send(
-        embed=embed,
-        file=await video.to_file()
-    )
-
+    web_runner = web.AppRunner(app)
+    await web_runner.setup()
+    site = web.TCPSite(web_runner, "0.0.0.0", WEB_PORT)
+    await site.start()
+    print(f"🌐 Noxia web server listening on port {WEB_PORT}")
 
 async def main():
     await start_web()
     await bot.start(TOKEN)
 
-import asyncio
 asyncio.run(main())
