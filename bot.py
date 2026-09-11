@@ -9,6 +9,16 @@ from discord.ext import commands
 import json
 import os
 
+TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN and os.path.exists(TOKEN_FILE):
+    with open(TOKEN_FILE, "r") as f:
+        TOKEN = f.read().strip()
+
+if not TOKEN:
+    raise RuntimeError("DISCORD_TOKEN environment variable is not set.")
+
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
 TOKEN_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
 
