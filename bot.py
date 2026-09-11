@@ -708,3 +708,112 @@ async def event(interaction: discord.Interaction):
 
 
 asyncio.run(main())
+
+
+# ──────────────── EXTRA COMMANDS ────────────────
+
+ping_task = None
+
+@bot.tree.command(name="ping", description="📢 Start a controlled @everyone ping timer")
+@app_commands.describe(interval="Seconds between pings (minimum 30)")
+async def ping(interaction: discord.Interaction, interval: int):
+    global ping_task
+
+    if interval < 30:
+        await interaction.response.send_message(
+            "❌ The minimum interval is **30 seconds**.",
+            ephemeral=True
+        )
+        return
+
+    if ping_task and not ping_task.done():
+        await interaction.response.send_message(
+            "⚠️ A ping timer is already running.",
+            ephemeral=True
+        )
+        return
+
+    if not interaction.channel.permissions_for(interaction.guild.me).mention_everyone:
+        await interaction.response.send_message(
+            "❌ I need the **Mention @everyone, @here, and All Roles** permission.",
+            ephemeral=True
+        )
+        return
+
+    await interaction.response.send_message(
+        f"⚡ **𝐏𝐢𝐧𝐠 𝐓𝐢𝐦𝐞𝐫 𝐒𝐭𝐚𝐫𝐭𝐞𝐝**\n"
+        f"📢 @everyone every **{interval} seconds**.\n"
+        f"🛑 Use `/pingstop` to stop it."
+    )
+
+    async def ping_loop():
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                msg = await interaction.channel.send(
+                    f"⚡ **𝐍𝐨𝐱𝐢𝐚 𝐏𝐢𝐧𝐠**\n@everyone"
+                )
+                await asyncio.sleep(3)
+                try:
+                    await msg.delete()
+                except discord.NotFound:
+                    pass
+        except asyncio.CancelledError:
+            pass
+
+    ping_task = asyncio.create_task(ping_loop())
+
+
+@bot.tree.command(name="pingstop", description="🛑 Stop the active ping timer")
+async def pingstop(interaction: discord.Interaction):
+    global ping_task
+
+    if ping_task and not ping_task.done():
+        ping_task.cancel()
+        ping_task = None
+        await interaction.response.send_message(
+            "🛑 **𝐏𝐢𝐧𝐠 𝐓𝐢𝐦𝐞𝐫 𝐒𝐭𝐨𝐩𝐩𝐞𝐝**"
+        )
+    else:
+        await interaction.response.send_message(
+            "ℹ️ There is no active ping timer.",
+            ephemeral=True
+        )
+
+
+@bot.tree.command(name="video", description="🎬 Post a video with a fancy embed")
+@app_commands.describe(
+    video="Upload the video",
+    title="Embed title",
+    description="Embed description"
+)
+async def video(
+    interaction: discord.Interaction,
+    video: discord.Attachment,
+    title: str = "🎬 𝐍𝐨𝐱𝐢𝐚 𝐕𝐢𝐝𝐞𝐨",
+    description: str = "✨ Check out this video!"
+):
+    if not video.content_type or not video.content_type.startswith("video/"):
+        await interaction.response.send_message(
+            "❌ Please upload a valid video file.",
+            ephemeral=True
+        )
+        return
+
+    embed = discord.Embed(
+        title=f"⚡ {title}",
+        description=description,
+        color=discord.Color.blurple()
+    )
+
+    embed.set_author(
+        name="𝐍𝐨𝐱𝐢𝐚 ♡",
+        icon_url=bot.user.display_avatar.url if bot.user else None
+    )
+    embed.set_footer(text="✨ Powered by 𝐍𝐨𝐱𝐢𝐚 ♡")
+    embed.timestamp = discord.utils.utcnow()
+
+    await interaction.response.send_message(
+        embed=embed,
+        file=await video.to_file()
+    )
