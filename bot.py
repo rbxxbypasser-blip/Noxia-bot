@@ -1,3 +1,6 @@
+import random
+import asyncio
+import time
 import discord
 from aiohttp import web
 import asyncio
@@ -489,5 +492,209 @@ async def start_web():
 async def main():
     await start_web()
     await bot.start(TOKEN)
+
+
+# ==================== AUTOMATIC EVENT SYSTEM ====================
+
+EVENT_NAMES = [
+    "⚡ Lightning Rush",
+    "🎮 Mystery Game Night",
+    "🏆 Champion Challenge",
+    "🎲 Random Challenge",
+    "💎 Diamond Hunt",
+    "🔥 Ultimate Showdown",
+    "🌟 Star Event",
+    "🚀 Speed Challenge"
+]
+
+EVENT_REWARDS = [
+    "💎 500 Server Coins",
+    "🏆 Exclusive Winner Role",
+    "⭐ VIP Role for 7 Days",
+    "🎁 Mystery Prize",
+    "⚡ Special Event Badge",
+    "💰 1,000 Server Coins"
+]
+
+class EventJoinButton(discord.ui.Button):
+    def __init__(self, event_data):
+        super().__init__(
+            label="✨ JOIN EVENT",
+            emoji="🎉",
+            style=discord.ButtonStyle.success,
+            custom_id=f"event_join_{event_data['id']}"
+        )
+        self.event_data = event_data
+
+    async def callback(self, interaction: discord.Interaction):
+        data = self.event_data
+
+        if time.time() >= data["ends"]:
+            await interaction.response.send_message(
+                "⏰ This event has already ended!",
+                ephemeral=True
+            )
+            return
+
+        if interaction.user.id not in data["players"]:
+            data["players"].append(interaction.user.id)
+            await interaction.response.send_message(
+                f"🎉 **You're in!**\n\n"
+                f"✨ Event: **{data['name']}**\n"
+                f"🎁 Reward: **{data['reward']}**\n"
+                f"🔗 Invite: {data['invite']}",
+                ephemeral=True
+            )
+        else:
+            await interaction.response.send_message(
+                "⚡ You're already entered!",
+                ephemeral=True
+            )
+
+class EventView(discord.ui.View):
+    def __init__(self, data):
+        super().__init__(timeout=None)
+        self.data = data
+        self.join_button = EventJoinButton(data)
+        self.add_item(self.join_button)
+
+@bot.tree.command(name="event", description="🎉 Start a random automatic event")
+async def event(interaction: discord.Interaction):
+
+    channel = interaction.channel
+
+    try:
+        invite = await channel.create_invite(
+            max_age=180,
+            max_uses=0,
+            unique=True,
+            reason="𝐍𝐨𝐱𝐢𝐚 ♡ automatic event"
+        )
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "❌ I need **Create Invite** permission in this channel.",
+            ephemeral=True
+        )
+        return
+    except Exception as e:
+        await interaction.response.send_message(
+            f"❌ I couldn't create the event invite.\n`{e}`",
+            ephemeral=True
+        )
+        return
+
+    duration = random.randint(45, 120)
+    name = random.choice(EVENT_NAMES)
+    reward = random.choice(EVENT_REWARDS)
+
+    data = {
+        "id": random.randint(100000, 999999999),
+        "name": name,
+        "reward": reward,
+        "invite": str(invite),
+        "ends": time.time() + duration,
+        "players": []
+    }
+
+    minutes = duration // 60
+    seconds = duration % 60
+    timer_text = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+
+    embed = discord.Embed(
+        title="╭━━━ ✨ 𝐍𝐎𝐗𝐈𝐀 𝐄𝐕𝐄𝐍𝐓 ✨ ━━━╮",
+        description=(
+            f"🎉 **A RANDOM EVENT HAS APPEARED!**\n\n"
+            f"🎲 **Event:** {name}\n"
+            f"🎁 **Random Reward:** {reward}\n"
+            f"⏳ **Time:** `{timer_text}`\n"
+            f"👥 **Players:** `0`\n\n"
+            f"🔗 **Event Invite:**\n{invite}\n\n"
+            f"⚡ Click **✨ JOIN EVENT** to enter!\n"
+            f"🏆 One lucky participant will be selected when the timer ends!"
+        ),
+        color=discord.Color.blurple()
+    )
+
+    embed.set_footer(text="𝐍𝐨𝐱𝐢𝐚 ♡ • Automatic Events")
+    embed.timestamp = discord.utils.utcnow()
+
+    view = EventView(data)
+
+    await interaction.response.send_message(
+        embed=embed,
+        view=view
+    )
+
+    message = await interaction.original_response()
+
+    # Countdown / live player count
+    while time.time() < data["ends"]:
+        await asyncio.sleep(5)
+
+        remaining = max(0, int(data["ends"] - time.time()))
+        mins = remaining // 60
+        secs = remaining % 60
+
+        embed.description = (
+            f"🎉 **A RANDOM EVENT HAS APPEARED!**\n\n"
+            f"🎲 **Event:** {name}\n"
+            f"🎁 **Random Reward:** {reward}\n"
+            f"⏳ **Time Left:** `{mins}m {secs}s`\n"
+            f"👥 **Players:** `{len(data['players'])}`\n\n"
+            f"🔗 **Event Invite:**\n{invite}\n\n"
+            f"⚡ Click **✨ JOIN EVENT** to enter!"
+        )
+
+        try:
+            await message.edit(embed=embed, view=view)
+        except discord.NotFound:
+            return
+        except discord.HTTPException:
+            pass
+
+    # End event
+    view.join_button.disabled = True
+    view.join_button.label = "🏁 EVENT ENDED"
+
+    if data["players"]:
+        winner_id = random.choice(data["players"])
+        winner = interaction.guild.get_member(winner_id)
+
+        if winner:
+            result = (
+                f"🏆 **WINNER:** {winner.mention}\n"
+                f"🎁 **REWARD:** {reward}\n\n"
+                f"🎉 Congratulations!"
+            )
+        else:
+            result = (
+                f"🏆 **Winner ID:** `{winner_id}`\n"
+                f"🎁 **Reward:** {reward}"
+            )
+    else:
+        result = (
+            "😢 **No one joined the event.**\n"
+            "There was no winner this time!"
+        )
+
+    final_embed = discord.Embed(
+        title="╭━━━ 🏁 𝐄𝐕𝐄𝐍𝐓 𝐄𝐍𝐃𝐄𝐃 🏁 ━━━╮",
+        description=(
+            f"🎲 **Event:** {name}\n"
+            f"🎁 **Reward:** {reward}\n"
+            f"👥 **Participants:** {len(data['players'])}\n\n"
+            f"{result}"
+        ),
+        color=discord.Color.gold()
+    )
+
+    final_embed.set_footer(text="𝐍𝐨𝐱𝐢𝐚 ♡ • Event Complete")
+    final_embed.timestamp = discord.utils.utcnow()
+
+    try:
+        await message.edit(embed=final_embed, view=view)
+    except discord.HTTPException:
+        pass
+
 
 asyncio.run(main())
