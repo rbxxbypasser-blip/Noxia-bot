@@ -327,7 +327,7 @@ class EmbedGroup(app_commands.Group):
         embed.set_author(
             name=f"𝐍𝐨𝐱𝐢𝐚 ♡ • {interaction.guild.name}",
             icon_url=interaction.guild.icon.url
-            if interaction.guild.icon else discord.Embed.Empty
+            if interaction.guild.icon else None
         )
 
         # Thumbnail
